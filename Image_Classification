@@ -1,0 +1,105 @@
+#Loading in my libraries 
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import classification_report, confusion_matrix, roc_curve, auc
+import tensorflow as tf
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense
+#Loading in my data that I downloaded
+df = pd.read_csv("C:/Users/luket/Downloads/cancer_data.csv")
+#Getting rid of the unnamed column. Not sure what this was for.
+df = df.drop(columns=['Unnamed: 32'], errors='ignore') 
+#Getting rid of the id column. This is just because it doesn't mean anything. 
+df = df.drop(columns=['id'], errors='ignore')  
+#Getting rid of any na values so it doesn't mess up our analysis 
+df = df.dropna() 
+#Encoding the diagnosis. Malignant is 1 and benign is 0
+df['diagnosis'] = df['diagnosis'].map({'M': 1, 'B': 0})
+#getting my x and y. My y is the diagnosis and my x is every predictor but my diagnosis 
+y = df['diagnosis']
+X = df.drop(columns=['diagnosis'])
+#This is standardizing the features 
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
+#Splitting into my training and test. Going to do 20% as my test 80% as my train
+X_train, X_test, y_train, y_test = train_test_split(
+    X_scaled, y, test_size=0.2, random_state=42
+)
+#Going to make a deep neural network with relu activation 
+model = Sequential([
+    Dense(128, activation='relu', input_shape=(X_train.shape[1],)),
+    Dropout(0.3),
+    Dense(64, activation='relu'),
+    Dropout(0.3),
+    Dense(32, activation='relu'),
+    #final layer is signmoid since its binary 
+    Dense(1, activation='sigmoid')  
+])
+
+#Compiling my model
+model.compile(optimizer=Adam(learning_rate=0.001),
+              loss='binary_crossentropy',
+              metrics=['accuracy'])
+
+#training my model 
+history = model.fit(X_train, y_train,
+                    epochs=50,
+                    batch_size=32,
+                    validation_split=0.2,
+                    verbose=1)
+
+#evaluating my model 
+loss, accuracy = model.evaluate(X_test, y_test)
+print(f"Test Accuracy: {accuracy:.4f}")
+
+# having a classification report 
+y_pred = (model.predict(X_test) > 0.5).astype("int32")
+print(classification_report(y_test, y_pred))
+# Predictions and metrics
+y_pred = model.predict(X_test).flatten()
+y_pred_labels = (y_pred >= 0.5).astype(int)  # <-- this line defines y_pred_labels
+# Confusion matrix
+cm = confusion_matrix(y_test, y_pred_labels)
+sns.heatmap(cm, annot=True, fmt="d", cmap="Blues")
+plt.title("Confusion Matrix")
+plt.xlabel("Predicted")
+plt.ylabel("True")
+plt.show()
+# Plot training history
+plt.figure(figsize=(12, 5))
+plt.subplot(1, 2, 1)
+plt.plot(history.history['accuracy'], label='Train Acc')
+plt.plot(history.history['val_accuracy'], label='Val Acc')
+plt.legend()
+plt.title("Accuracy Over Epochs")
+plt.subplot(1, 2, 2)
+plt.plot(history.history['loss'], label='Train Loss')
+plt.plot(history.history['val_loss'], label='Val Loss')
+plt.legend()
+plt.title("Loss Over Epochs")
+plt.tight_layout()
+plt.show()
+#plotting my roc curve 
+fpr, tpr, thresholds = roc_curve(y_test, y_pred)
+roc_auc = auc(fpr, tpr)
+plt.figure()
+plt.plot(fpr, tpr, label=f"AUC = {roc_auc:.2f}")
+plt.plot([0, 1], [0, 1], 'k--')
+plt.xlabel("False Positive Rate")
+plt.ylabel("True Positive Rate")
+plt.title("ROC Curve")
+plt.legend()
+plt.show()
+
+#Compare to linear regression so we have a baseline 
+linear_model = Sequential([
+    Dense(1, activation='sigmoid', input_shape=(X_train.shape[1],))
+])
+linear_model.compile(optimizer=Adam(), loss='binary_crossentropy', metrics=['accuracy'])
+linear_model.fit(X_train, y_train, epochs=20, batch_size=128, validation_split=0.1, verbose=2)
+loss, accuracy = linear_model.evaluate(X_test, y_test, verbose=0)
+print(f"\nTest Accuracy: {accuracy:.4f}")
